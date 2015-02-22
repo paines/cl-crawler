@@ -1,4 +1,5 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (declaim (optimize (speed 0) (compilation-speed 0) (safety 0) (debug 0)))
   (asdf:load-system :sdl2kit)
   (asdf:load-system :cl-jpeg)
   (asdf:load-system :png-read)
@@ -22,7 +23,8 @@
 
 (declaim (inline getOffset))
 (defun getOffset (x y w)
-  (+ (* y w) x))
+  (declare (type fixnum x y w))
+  (the fixnum (+ (* y w) x)))
 
 
 (defun gl-ortho-setup (&key (width 500) (height 500))
@@ -61,21 +63,24 @@
       (make-image :data array :width width :height height :depth size :pitch (* width size)))))
 
 (defun render (renderer window-width window-height width height image)
-  (Setf *last-ticks* (sdl2:get-ticks))
+
+  (setf *last-ticks* (sdl2:get-ticks))
+
   (let* ((tex (sdl2:create-texture renderer :argb8888 :streaming window-width window-height))
 	 (xd 0.0)
 	 (yd 0.0)
 	 (z 0.0)
 	 (xx 0.0)
 	 (yy 0.0)
+	 (val 0)
+	 (brightness .09)
 	 (ticks (sdl2:get-ticks))
 	 (eye (+ (* (sin (/ ticks 666)) 2) (* (cos (/ ticks 666)) 2)))
 	 (size 35)
 	 (src-rect (sdl2:make-rect 0 0 width height))
 	 (dest-rect (sdl2:make-rect 0 0 window-width window-height))
-	 ;;(image (load-png #p"~/Dropbox/pacman.png"))
 	 (pixels (static-vectors:make-static-vector (* width height) :element-type '(unsigned-byte 32) :initial-element 0))
-	 (zbuffer (static-vectors:make-static-vector (* width height) :element-type '(unsigned-byte 32) :initial-element 0)))
+    	 (zbuffer (make-array (* width height) :element-type 'float :initial-element 10000.0)))
 
     (if (>= *diff-ticks* 1000)
 	(progn
@@ -87,31 +92,27 @@
     
     (dotimes (y height)
 
-      (setf yd (/ (- (+ y 0.5) (/ height 2.0)) height))
-
-      (if (= yd 0)
-	  (go end))
+       (setf yd (/ (- (+ y 0.5) (/ height 2.0)) height))
       
-      (setf z (/ (+ size eye) yd))
-      (if (< yd 0)
-	  (setf z (/ (- size eye) (* yd -1))))
+       (setf z (/ (+ size eye) yd))
+       (if (< yd 0)
+       	  (setf z (/ (- size eye) (* yd -1))))
       
       (dotimes (x width)
-	(setf xd (* (/ (- x (/ width 2)) height) z))
+       	(setf xd (* (/ (- x (/ width 2)) height) z))
 	
-	(setf xx (logand (floor xd) (- (width image) 1)))
-	(setf yy (logand (floor z) (- (height image) 1)))
+ 	(setf xx (logand (floor xd) (- (width image) 1)))
+ 	(setf yy (logand (floor z) (- (height image) 1)))
 
-	(setf (aref zbuffer (getOffset x y width)) (floor z))
-	(setf (aref pixels (getOffset x y width)) (aref (data image) (getOffset xx yy (width image)))))
-      end)
+       	(setf (aref zbuffer (getOffset x y width)) (floor (* z brightness)))
+       	(setf (aref pixels (getOffset x y width)) (aref (data image) (getOffset xx yy (width image)))))
+
     
     (post-process pixels zbuffer width height)
     (sdl2:update-texture tex (static-vectors:static-vector-pointer pixels) :rect src-rect :width (* width 4))
     (sdl2:render-copy renderer tex :source-rect src-rect :dest-rect dest-rect)
     (sdl2:render-present renderer)
     (sdl2:destroy-texture tex)
-    (static-vectors:free-static-vector zbuffer)
     (static-vectors:free-static-vector pixels))
   (setf *now-ticks* (sdl2:get-ticks))
   (setf *diff-ticks* (+ (- *now-ticks* *last-ticks*) *diff-ticks*)))
@@ -124,6 +125,7 @@
 	(b 0)
 	(brightness 0)
 	(res 0))
+    (declare (type fixnum a r g b brightness res col))
     
     (dotimes (i (* width height))
 
@@ -156,7 +158,7 @@
   (setf *image* (load-png #p"~/Dropbox/mario.png"))
   (sdl2:with-init (:everything)
     (multiple-value-bind (window renderer)
-	(sdl2:create-window-and-renderer window-width window-height '(:shown :VSYNC :accelerated))
+	(sdl2:create-window-and-renderer window-width window-height '(:shown<))
       ;;   (sdl2:create-window-and-renderer window-width window-height '(:shown :opengl:VSYNC :accelerated))
       ;; (sdl2:with-gl-context (gl window)
       ;;   (sdl2:gl-make-current window gl)

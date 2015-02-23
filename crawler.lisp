@@ -4,21 +4,22 @@
   (asdf:load-system :cl-jpeg)
   (asdf:load-system :png-read)
   (asdf:load-system :static-vectors)
-  ;;(asdf:load-system :cl-opengl)
+  (asdf:load-system :cl-opengl)
   )
 
-(defparameter width 160)
-(defparameter height 120)
+(defparameter *state* 0)
+
+(defparameter width 240)
+(defparameter height 160)
 
 (defparameter half-height (/ height 2))
 (defparameter half-width (/ width 2))
 
-(defparameter window-width (* width 4))
-(defparameter window-height (* height 4))
+(defparameter window-width (* width 5))
+(defparameter window-height (* height 5))
 
 (defparameter *num-frames* 0)
 (defparameter *last-ticks* 0)
-(defparameter *now-ticks* 0)
 (defparameter *diff-ticks* 0)
 (defparameter *image* 0)
 
@@ -65,18 +66,24 @@
 						   (ash #xFF 24)))))))
       (make-image :data array :width width :height height :depth size :pitch (* width size)))))
 
-(defun render (renderer window-width window-height width height image)
-
-  (setf *last-ticks* (sdl2:get-ticks))
-
+(defun render (renderer window-width window-height width height image state)
+  (if (>= *diff-ticks* 1000) 
+      (progn
+	(format t "frames = ~D ~%" *num-frames*)    
+	(setf *num-frames* 0)
+	(setf *diff-ticks* 0)
+	(finish-output)))
+  
+  (if (= state 0)
+      (progn
   (let* ((tex (sdl2:create-texture renderer :argb8888 :streaming window-width window-height))
 	 (xd 0.0)
 	 (yd 0.0)
-	 (z 0.0)
+	 (z 0)
 	 (xx 0.0)
 	 (yy 0.0)
 	 (brightness .5)
-	 (ticks (sdl2:get-ticks))
+	 (ticks *last-ticks*)
 	 (eye (+ (* (sin (/ ticks 666)) 2) (* (cos (/ ticks 666)) 2)))
 	 (size 35)
 	 (src-rect (sdl2:make-rect 0 0 width height))
@@ -84,21 +91,13 @@
 	 (pixels (static-vectors:make-static-vector (* width height) :element-type '(unsigned-byte 32) :initial-element 0))
 	 (zbuffer (static-vectors:make-static-vector (* width height) :element-type '(unsigned-byte 32) :initial-element 0)))
 
-    (if (>= *diff-ticks* 1000)
-	(progn
-	  (format t "frames = ~D ~%" *num-frames*)    
-	  (setf *num-frames* 0)
-	  (setf *diff-ticks* 0)
-	  (finish-output))
-	(setf *num-frames* (+ *num-frames* 1)))
-    
     (dotimes (y height)
 
        (setf yd (/ (- (+ y 0.5) half-height) height))
       
        (setf z (/ (+ size eye) yd))
        (if (< yd 0)
-       	  (setf z (/ (- size eye) (* yd -1))))
+       	  (setf z   (/ (- size eye) (- yd))))
       
       (dotimes (x width)
        	(setf xd (* (/ (- x half-width) height) z))
@@ -118,9 +117,10 @@
     (sdl2:free-rect src-rect)
     (sdl2:free-rect dest-rect)
     (static-vectors:free-static-vector zbuffer)
-    (static-vectors:free-static-vector pixels))
-  (setf *now-ticks* (sdl2:get-ticks))
-  (setf *diff-ticks* (+ (- *now-ticks* *last-ticks*) *diff-ticks*)))
+    (static-vectors:free-static-vector pixels))))
+  (setf *diff-ticks* (+ (- (sdl2:get-ticks) *last-ticks*) *diff-ticks*))
+  (setf *num-frames* (+ *num-frames* 1))
+  (setf *last-ticks* (sdl2:get-ticks)))
 
 (defun post-process (pixels zbuffer width height)
   (let ((col 0)
@@ -141,12 +141,13 @@
       (setf g (logand #xff (ash col -8)))
       (setf b (logand #xff col))
       
-      (setf brightness (- 255 (truncate (aref zbuffer i))))
+      (setf brightness (the fixnum (- 255 (aref zbuffer i))))
+      ;(setf brightness (- 255 (aref zbuffer i)))
       
       (if (< brightness 0)
 	  (setf brightness 0))
 
-      (setf r (truncate (ash (* r brightness) -8)))
+      (setf r (the fixnum (ash (* r brightness) -8)))
       (setf g (truncate (ash (* g brightness) -8)))
       (setf b (truncate (ash (* b brightness) -8)))
 
@@ -163,13 +164,14 @@
   (setf *image* (load-png #p"~/Dropbox/mario.png"))
   (sdl2:with-init (:everything)
     (multiple-value-bind (window renderer)
-	(sdl2:create-window-and-renderer window-width window-height '(:shown))
-      ;;   (sdl2:create-window-and-renderer window-width window-height '(:shown :opengl:VSYNC :accelerated))
-      ;; (sdl2:with-gl-context (gl window)
-      ;;   (sdl2:gl-make-current window gl)
-      ;;   (gl:enable :texture-2d)
-      ;;   (gl-ortho-setup :width window-width :height window-height)
-      
+;;	(sdl2:create-window-and-renderer window-width window-height '(:shown))
+        (sdl2:create-window-and-renderer window-width window-height '(:shown :opengl))
+      (sdl2:with-gl-context (gl window)
+        (sdl2:gl-make-current window gl)
+        (gl:enable :texture-2d)
+        (gl-ortho-setup :width window-width :height window-height)
+
+;	(gl-set-attr 'attr value)
       ;; main loop
       (format t "Beginning main loop.~%")
       (finish-output)
@@ -191,7 +193,14 @@
 	(:keyup
 	 (:keysym keysym)
 	 (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-escape)
-	   (sdl2:push-event :quit)))
+	   (sdl2:push-event :quit))
+
+	 (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-p)
+	   (setf *state* 1))
+
+	 (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-o)
+	   (setf *state* 0)))
+	 
 	
 	(:mousemotion
 	 (:x x :y y :xrel xrel :yrel yrel :state state)
@@ -199,13 +208,12 @@
 		 x xrel y yrel state))
 	(:idle
 	 ()
-	 (render renderer window-width window-height width height *image*)
-	 )
+	 (render renderer window-width window-height width height *image* *state*))
 	
 	(:quit () t))
       (sdl2:destroy-renderer renderer)
       (sdl2:destroy-window window))))
-;;)
+)
 
 #-clozure
 (sdl2:make-this-thread-main (lambda () (basic-test)))

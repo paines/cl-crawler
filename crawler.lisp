@@ -10,6 +10,9 @@
 (defparameter width 160)
 (defparameter height 120)
 
+(defparameter half-height (/ height 2))
+(defparameter half-width (/ width 2))
+
 (defparameter window-width (* width 4))
 (defparameter window-height (* height 4))
 
@@ -72,15 +75,14 @@
 	 (z 0.0)
 	 (xx 0.0)
 	 (yy 0.0)
-	 (val 0)
-	 (brightness .09)
+	 (brightness .5)
 	 (ticks (sdl2:get-ticks))
 	 (eye (+ (* (sin (/ ticks 666)) 2) (* (cos (/ ticks 666)) 2)))
 	 (size 35)
 	 (src-rect (sdl2:make-rect 0 0 width height))
 	 (dest-rect (sdl2:make-rect 0 0 window-width window-height))
 	 (pixels (static-vectors:make-static-vector (* width height) :element-type '(unsigned-byte 32) :initial-element 0))
-    	 (zbuffer (make-array (* width height) :element-type 'float :initial-element 10000.0)))
+	 (zbuffer (static-vectors:make-static-vector (* width height) :element-type '(unsigned-byte 32) :initial-element 0)))
 
     (if (>= *diff-ticks* 1000)
 	(progn
@@ -92,20 +94,20 @@
     
     (dotimes (y height)
 
-       (setf yd (/ (- (+ y 0.5) (/ height 2.0)) height))
+       (setf yd (/ (- (+ y 0.5) half-height) height))
       
        (setf z (/ (+ size eye) yd))
        (if (< yd 0)
        	  (setf z (/ (- size eye) (* yd -1))))
       
       (dotimes (x width)
-       	(setf xd (* (/ (- x (/ width 2)) height) z))
+       	(setf xd (* (/ (- x half-width) height) z))
 	
- 	(setf xx (logand (floor xd) (- (width image) 1)))
- 	(setf yy (logand (floor z) (- (height image) 1)))
+ 	(setf xx (logand (truncate xd) (- (width image) 1)))
+ 	(setf yy (logand (truncate z) (- (height image) 1)))
 
-       	(setf (aref zbuffer (getOffset x y width)) (floor (* z brightness)))
-       	(setf (aref pixels (getOffset x y width)) (aref (data image) (getOffset xx yy (width image)))))
+       	(setf (aref zbuffer (getOffset x y width)) (truncate (* z brightness)))
+       	(setf (aref pixels (getOffset x y width)) (aref (data image) (getOffset xx yy (width image))))))
 
     
     (post-process pixels zbuffer width height)
@@ -113,6 +115,9 @@
     (sdl2:render-copy renderer tex :source-rect src-rect :dest-rect dest-rect)
     (sdl2:render-present renderer)
     (sdl2:destroy-texture tex)
+    (sdl2:free-rect src-rect)
+    (sdl2:free-rect dest-rect)
+    (static-vectors:free-static-vector zbuffer)
     (static-vectors:free-static-vector pixels))
   (setf *now-ticks* (sdl2:get-ticks))
   (setf *diff-ticks* (+ (- *now-ticks* *last-ticks*) *diff-ticks*)))
@@ -136,14 +141,14 @@
       (setf g (logand #xff (ash col -8)))
       (setf b (logand #xff col))
       
-      (setf brightness (- 255 (round (aref zbuffer i))))
+      (setf brightness (- 255 (truncate (aref zbuffer i))))
       
       (if (< brightness 0)
 	  (setf brightness 0))
 
-      (setf r (round (/ (* r brightness) 255)))
-      (setf g (round (/ (* g brightness) 255)))
-      (setf b (round (/ (* b brightness) 255)))
+      (setf r (truncate (ash (* r brightness) -8)))
+      (setf g (truncate (ash (* g brightness) -8)))
+      (setf b (truncate (ash (* b brightness) -8)))
 
       (setf res (logior
 		 (ash a 24)
@@ -158,7 +163,7 @@
   (setf *image* (load-png #p"~/Dropbox/mario.png"))
   (sdl2:with-init (:everything)
     (multiple-value-bind (window renderer)
-	(sdl2:create-window-and-renderer window-width window-height '(:shown<))
+	(sdl2:create-window-and-renderer window-width window-height '(:shown))
       ;;   (sdl2:create-window-and-renderer window-width window-height '(:shown :opengl:VSYNC :accelerated))
       ;; (sdl2:with-gl-context (gl window)
       ;;   (sdl2:gl-make-current window gl)

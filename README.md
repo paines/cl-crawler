@@ -6,16 +6,12 @@ This is an attempt to redo the above mentioned game in Common Lisp. To get thing
 - static-vectors
 
 Best is, pull and compile them via quicklisp.
-Note that you will have to get some texture (like 64x64 or 32x32 in PNG format) and edit the call 
-
-    (setf *image* (load-png #p"~/Dropbox/texture.png")) 
-
-in the function basic-test.
 
 For now following things are working:
 - rendering of floor and ceiling
 - texture mapping of floor and ceiling with the same texture
 - shading
+- keyboard / mouse handling
  
 The intention was to experiment with writing a game and beeing able to change things more interactively than notch himself is doing in the video. Once you have the programm running you can e.g. :
 - change the width and height -> resulting in a better or worse looking quality which has of course high impact on the performance

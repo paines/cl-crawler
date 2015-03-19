@@ -4,7 +4,8 @@
 ;(in-package :cl-crawler)
 
  (eval-when (:compile-toplevel :load-toplevel :execute)
-  (declaim (optimize (speed 0) (compilation-speed 0) (safety 0) (debug 0)))
+   (declaim (optimize (speed 0) (compilation-speed 0) (safety 0) (debug 0)))
+   (asdf:load-system :swank)
   (asdf:load-system :sdl2kit)
   (asdf:load-system :png-read)
   (asdf:load-system :static-vectors)
@@ -17,14 +18,17 @@
 
 (defparameter *state* 0)
 
-(defparameter *width* 120)
-(defparameter *height* 80)
+(defparameter *width* 150)
+(defparameter *height* 100)
 
 (defparameter *half-height* (/ *height* 2))
 (defparameter *half-width* (/ *width* 2))
 
-(defparameter *window-width* (* *width* 8))
-(defparameter *window-height* (* *height* 8))
+;(defparameter *window-width* (* *width* 8))
+;(defparameter *window-height* (* *height* 8))
+
+(defparameter *window-width* (* *width* 5))
+(defparameter *window-height* (* *height* 5))
 
 (defparameter *num-frames* 0)
 (defparameter *last-ticks* 0)
@@ -38,6 +42,7 @@
 (defparameter *light* 14)
 (defparameter *image* 0)
 (defparameter *phi* 0)
+(defparameter *distance* 1)
 (defstruct (image :conc-name) data width height depth pitch)
 
 (defparameter *pi/180* 0.017453292519943295d0)
@@ -172,12 +177,14 @@
 (defun render-wall (pixels zbuffer width height image state)
   (if (= state 0)
       (progn
-	(let ((offset 0))
-	  (dotimes (y height)      
-	    (dotimes (x width)
-	      (setf offset (getOffset x y width))
-	   ;   (setf (aref zbuffer offset) (truncate (* z brightness)))
-	      (setf (aref pixels offset) #xcacacaff)))))))
+	(dotimes (i 1000)      
+	  (let ((offset 0)
+		(x (random *width*))
+		(y (random *height*))
+		(z *distance*))
+	    
+	    (setf offset (getOffset (truncate (/ x z)) (truncate (/ y z)) width))
+	    (setf (aref pixels offset) #xff00ff))))))
 
 
 (defun post-process (pixels zbuffer width height)
@@ -254,6 +261,15 @@
   (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-s)
     (setf *ypos* (- *ypos* *step-y*)))
 
+  (if (= *distance* 0)
+      (setf *distance* 1))
+  
+  (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-z)
+    (setf *distance* (- *distance* 1)))
+
+    (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-y)
+    (setf *distance* (+ *distance* 1)))
+
   
   (when (sdl2:scancode= (sdl2:scancode-value keysym) :scancode-k)    
     (setf *light* (- *light* 1))
@@ -268,7 +284,7 @@
 
 (defun render-everything (pixels zbuffer  width height floor-image wall-image state)
   (render-floor pixels zbuffer width height floor-image state)
-  ;;(render-wall pixels zbuffer width height wall-image state)
+  (render-wall pixels zbuffer width height wall-image state)
   (post-process pixels zbuffer width height)
   )
 
@@ -329,12 +345,13 @@
 	 ()
 	 (sdl2:destroy-renderer renderer)
 	 (sdl2:destroy-window window)    
-	 ;(sdl2:quit)
+;	 (sdl2:quit)
 	 t)))))	
 ;)
 
 #-clozure
-(sdl2:make-this-thread-main (lambda () (basic-test)))
+(sb-int:with-float-traps-masked (:invalid :inexact)
+  (sdl2:make-this-thread-main (lambda () (basic-test))))
 #+clozure
 (basic-test)
 

@@ -5,11 +5,11 @@
 
  (eval-when (:compile-toplevel :load-toplevel :execute)
    (declaim (optimize (speed 0) (compilation-speed 0) (safety 0) (debug 0)))
-   (asdf:load-system :swank)
-  (asdf:load-system :sdl2kit)
-  (asdf:load-system :png-read)
-  (asdf:load-system :static-vectors)
-;  (asdf:load-system :cl-opengl)
+   (ql:quickload "swank")
+  (ql:quickload "sdl2kit")
+  (ql:quickload "png-read")
+  (ql:quickload "static-vectors")
+;  (ql:quickload "cl-opengl")
   )
 
 
@@ -284,7 +284,7 @@
 
 (defun render-everything (pixels zbuffer  width height floor-image wall-image state)
   (render-floor pixels zbuffer width height floor-image state)
-  (render-wall pixels zbuffer width height wall-image state)
+  ;(render-wall pixels zbuffer width height wall-image state)
   (post-process pixels zbuffer width height)
   )
 
@@ -331,7 +331,7 @@
 	       (src-rect (sdl2:make-rect 0 0 *width* *height*))
 	       (dest-rect (sdl2:make-rect 0 0 *window-width* *window-height*)))	
 	   (render-everything pixels zbuffer *width* *height* *floor-image* *wall-image* *state*)
-	   (sdl2:update-texture tex (static-vectors:static-vector-pointer pixels) :rect src-rect :width (* *width* 4))
+	   (sdl2:update-texture tex src-rect (static-vectors:static-vector-pointer pixels) (* *width* 4))
 	   (sdl2:render-copy renderer tex :source-rect src-rect :dest-rect dest-rect)
 	   (sdl2:render-present renderer)
 	   (sdl2:free-rect src-rect)

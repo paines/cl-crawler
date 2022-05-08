@@ -5,11 +5,11 @@
 
  (eval-when (:compile-toplevel :load-toplevel :execute)
    (declaim (optimize (speed 0) (compilation-speed 0) (safety 0) (debug 0)))
-   (asdf:load-system :swank)
-  (asdf:load-system :sdl2kit)
-  (asdf:load-system :png-read)
-  (asdf:load-system :static-vectors)
-;  (asdf:load-system :cl-opengl)
+;   (ql:quickload "swank")
+  (ql:quickload "sdl2kit")
+  (ql:quickload "png-read")
+  (ql:quickload "static-vectors")
+;  (ql:quickload "cl-opengl")
   )
 
 
@@ -83,11 +83,11 @@
   (the fixnum (+ (* y w) x)))
 
 
-;; (defun gl-ortho-setup (&key (width 500) (height 500))
-;;   "Set up 1:1 pixel ortho matrix"
-;;   (gl:viewport 0 0 *width* *height*)
-;;   (gl:matrix-mode :projection)
-;;   (gl:ortho 0 *width* *height* 0 -1 1))
+(defun gl-ortho-setup (&key (width 500) (height 500))
+  "Set up 1:1 pixel ortho matrix"
+  (gl:viewport 0 0 *width* *height*)
+  (gl:matrix-mode :projection)
+  (gl:ortho 0 *width* *height* 0 -1 1))
 
 ;;stolen form https://github.com/froggey/Mezzano/blob/master/gui/desktop.lisp - thanks mate!
 (defun load-png (path)
@@ -284,7 +284,7 @@
 
 (defun render-everything (pixels zbuffer  width height floor-image wall-image state)
   (render-floor pixels zbuffer width height floor-image state)
-  (render-wall pixels zbuffer width height wall-image state)
+  ;(render-wall pixels zbuffer width height wall-image state)
   (post-process pixels zbuffer width height)
   )
 
@@ -300,10 +300,10 @@
     (multiple-value-bind (window renderer)
 	(sdl2:create-window-and-renderer *window-width* *window-height* '(:shown))
       ;;   (sdl2:create-window-and-renderer *window-width* *window-height* '(:shown :opengl))
-      ;; (sdl2:with-gl-context (gl window)
-      ;;   (sdl2:gl-make-current window gl)
-      ;;   (gl:enable :texture-2d)
-      ;;   (gl-ortho-setup :width *window-width* :height *window-height*)
+      (sdl2:with-gl-context (gl window)
+         (sdl2:gl-make-current window gl)
+         (gl:enable :texture-2d)
+         (gl-ortho-setup :width *window-width* :height *window-height*)
 
 ;	(gl-set-attr 'attr value)
       ;; main loop
@@ -331,7 +331,7 @@
 	       (src-rect (sdl2:make-rect 0 0 *width* *height*))
 	       (dest-rect (sdl2:make-rect 0 0 *window-width* *window-height*)))	
 	   (render-everything pixels zbuffer *width* *height* *floor-image* *wall-image* *state*)
-	   (sdl2:update-texture tex (static-vectors:static-vector-pointer pixels) :rect src-rect :width (* *width* 4))
+	   (sdl2:update-texture tex src-rect (static-vectors:static-vector-pointer pixels) (* *width* 4))
 	   (sdl2:render-copy renderer tex :source-rect src-rect :dest-rect dest-rect)
 	   (sdl2:render-present renderer)
 	   (sdl2:free-rect src-rect)
@@ -346,12 +346,11 @@
 	 (sdl2:destroy-renderer renderer)
 	 (sdl2:destroy-window window)    
 ;	 (sdl2:quit)
-	 t)))))	
-;)
+	 t))))))
 
-#-clozure
-(sb-int:with-float-traps-masked (:invalid :inexact)
-  (sdl2:make-this-thread-main (lambda () (basic-test))))
-#+clozure
+;;#-clozure
+;;(sb-int:with-float-traps-masked (:invalid :inexact)
+;;  (sdl2:make-this-thread-main (lambda () (basic-test))))
+;;#+clozure
 (basic-test)
 

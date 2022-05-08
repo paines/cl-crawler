@@ -5,12 +5,11 @@
 
  (eval-when (:compile-toplevel :load-toplevel :execute)
    (declaim (optimize (speed 0) (compilation-speed 0) (safety 0) (debug 0)))
-;   (ql:quickload "swank")
+  (ql:quickload "swank")
   (ql:quickload "sdl2kit")
   (ql:quickload "png-read")
   (ql:quickload "static-vectors")
-;  (ql:quickload "cl-opengl")
-  )
+  (ql:quickload "cl-opengl"))
 
 
 (defun asset-path (filename)
